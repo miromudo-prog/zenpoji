@@ -194,6 +194,7 @@
   <!-- ② 動画後 → 「タップしてゲームスタート」 -->
   <div id="startGate" class="gateScreen">
     <div>
+
       <div class="msg">タップしてゲームスタート<br>ゲームのルール：タップしてキャラクターを落として積んでみよう。</div>
     </div>
   </div>
@@ -237,26 +238,26 @@
     // ===== スマホ最適化（ここが今回の改善点）=====
     // ブロックを端末幅で自動縮小（PCは1.0、スマホは小さめ）
     const DESIGN_W = 900;   // PC基準の幅（ざっくりでOK）
-    const MIN_SCALE = 0.60; // 小さくしすぎ防止（0.45〜0.7で好み）
+    const MIN_SCALE = 0.55; // 小さくしすぎ防止（0.45〜0.7で好み）
     let SCALE = 1;
 
     // さらに「全体的に少し小さくしたい」場合の倍率（ここだけ触ればOK）
-    const BLOCK_SCALE = 0.60; // 0.75〜0.95おすすめ
+    const BLOCK_SCALE = 0.55; // 0.75〜0.95おすすめ
 
     // 赤バー判定を優しく（大きいほど許す）
-    const SENSOR_FORGIVE = 60; // 30〜100で調整
+    const SENSOR_FORGIVE = 90; // 30〜100で調整
 
     // セーフ台：中央、幅2/3
     const SAFE_RATIO = 2/3;
 
     // ★バーを下げて上の余白を増やす（数値↑で下がる）
-    const SAFE_Y_RATIO = 0.88; // 0.86〜0.92で調整
+    const SAFE_Y_RATIO = 0.90; // 0.86〜0.92で調整
 
     // ブロック（元サイズ）
     const BASE_SIZE0 = 140;
 
     // プレビュー（スマホで上が狭いので少し下げる）
-    const PREVIEW_Y0 = 140;
+    const PREVIEW_Y0 = 110;
     const PREVIEW_SPEED = 3;
     const STABLE_SPEED = 0.15;
     const STABLE_SECONDS = 1.0;
@@ -881,6 +882,7 @@
   </script>
 </body>
 </html>
+
 
 
 
