@@ -228,12 +228,16 @@
     const BGM_PATH = "assets/bgm/bgm.mp3";
     const GAMEOVER_SE_PATH = "assets/sfx/gameover.mp3";
 
-    // ===== スマホ救済チューニング（ここ触ると一気に変わる）=====
-    const BLOCK_SCALE = 0.80;      // ブロック縮小（0.70〜0.95）
-    const SENSOR_FORGIVE = 70;     // 判定救済px（大きいほど優しい：40〜120）
-    const SAFE_Y_RATIO = 0.88;     // 赤バーを下へ（0.86〜0.92）
-    const SAFE_RATIO_PC = 2/3;
-    const SAFE_RATIO_MOBILE = 0.78; // スマホは台をちょい広く（積みやすい）
+// ===== スマホ救済チューニング（極小ブロック版）=====
+const BLOCK_SCALE = 0.10;        // ★ブロック10分の1
+const SENSOR_FORGIVE = 120;      // ★赤バー判定をかなり優しく
+const SAFE_Y_RATIO = 0.88;       // ★バーを下に
+const SAFE_RATIO_PC = 2/3;
+const SAFE_RATIO_MOBILE = 0.85;  // ★スマホは台を広めに
+
+// ブロック元サイズ（実際は BLOCK_SCALE が掛かる）
+const BASE_SIZE0 = 140;
+
 
     // ブロック（“元”サイズ。実際は BLOCK_SCALE が掛かる）
     const BASE_SIZE0 = 140;
@@ -577,9 +581,7 @@
       const meta = imgMeta.get(path) || {w:1,h:1};
       const aspect = meta.w / meta.h;
 
-      const BASE_SIZE = BASE_SIZE0 * BLOCK_SCALE;
-      const MIN_WH = 80 * BLOCK_SCALE;
-      const MAX_WH = 200 * BLOCK_SCALE;
+
 
       let bw, bh;
       if(aspect >= 1){
@@ -865,3 +867,4 @@
   </script>
 </body>
 </html>
+
