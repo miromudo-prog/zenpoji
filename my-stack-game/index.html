@@ -257,7 +257,7 @@
     const BASE_SIZE0 = 140;
 
     // プレビュー（スマホで上が狭いので少し下げる）
-    const PREVIEW_Y0 = 110;
+    const PREVIEW_Y0 = 90;
     const PREVIEW_SPEED = 3;
     const STABLE_SPEED = 0.15;
     const STABLE_SECONDS = 1.0;
@@ -676,9 +676,9 @@
     }
 
     function commentForScore(n){
-      if(n <= 2) return "まだまだだね";
-      if(n <= 4) return "やりますね";
-      if(n <= 6) return "ここから先は…地獄だぜ";
+      if(n <= 5) return "まだまだだね";
+      if(n <= 10) return "やりますね";
+      if(n <= 15) return "ここから先は…地獄だぜ";
       return "あなたこそが糞ゲー王";
     }
 
@@ -882,6 +882,7 @@
   </script>
 </body>
 </html>
+
 
 
 
