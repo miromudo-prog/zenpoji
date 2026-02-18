@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>ゼンポウジ保健委員会委員長</title>
+
+  <style>
+    html,body{
+      margin:0; height:100%; overflow:hidden;
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    }
+
+    /* 背景（ゲーム中に表示。未設定時は黒） */
+    #bg{
+      position:fixed; inset:0; z-index:0;
+      background-color:#000;
+      background-size:cover;
+      background-position:center;
+      background-repeat:no-repeat;
+      transform: scale(1.02);
+      filter: saturate(1.05) contrast(1.02);
+    }
+    #bgDim{
+      position:fixed; inset:0; z-index:1;
+      background: radial-gradient(circle at 50% 40%, rgba(0,0,0,0.35), rgba(0,0,0,0.65) 65%, rgba(0,0,0,0.85));
+      pointer-events:none;
+    }
+
+    /* Matter.jsのcanvasを入れる層（背景の上） */
+    #gameRoot{
+      position:fixed; inset:0;
+      z-index:2;
+      background: transparent;
+    }
+
+    /* 紙吹雪（最前面） */
+    #confetti{
+      position:fixed; inset:0;
+      pointer-events:none;
+      z-index:30;
+      display:none;
+    }
+
+/* OP動画 */
+#opVideo{
+  position:fixed;
+  top:50%;
+  left:50%;
+  width:95%;
+  height:95%;
+  transform:translate(-50%,-50%); /* ★中央寄せ */
+  object-fit:contain;             /* ★全部入れたいなら cover→contain */
+  display:none;
+  z-index:40;
+  background:#000;
+}
+
+
+    /* HUD（ゲーム中だけ表示） */
+    #hud{
+      position:fixed; left:12px; top:12px;
+      color:#fff; z-index:5;
+      background: rgba(0,0,0,.35);
+      padding:8px 10px;
+      border-radius:12px;
+      font-weight:800;
+      user-select:none;
+      white-space:nowrap;
+      display:none; /* ★初期は非表示 */
+      align-items:center;
+      gap:10px;
+    }
+    #hud button{
+      border:none;
+      border-radius:10px;
+      padding:6px 10px;
+      font-size:12px;
+      font-weight:900;
+      background: rgba(255,255,255,.88);
+      color:#111;
+    }
+    #hud button:active{ transform: scale(0.98); }
+
+    /* ゲームオーバー画面 */
+    #overlay{
+      position:fixed; inset:0;
+      display:none;
+      flex-direction:column;
+      justify-content:center;
+      align-items:center;
+      text-align:center;
+      gap:10px;
+      z-index:20;
+      background: rgba(0,0,0,.75);
+      color:#fff;
+      padding:24px;
+    }
+    #overlay h2{ margin:0; font-size:22px; }
+    #overlay p{ margin:0; font-size:16px; opacity:.92; line-height:1.6; }
+
+    #btnRow{
+      display:flex;
+      gap:10px;
+      margin-top:10px;
+      flex-wrap:wrap;
+      justify-content:center;
+    }
+    .bigBtn{
+      font-size:16px; padding:12px 18px;
+      border-radius:12px; border:none;
+      background:#fff; color:#111; font-weight:900;
+    }
+    .bigBtn:active{ transform: scale(0.99); }
+
+    /* 最高記録強調は「最高」行だけ */
+    #bestLine{ margin-top:4px; opacity:0.95; }
+    #bestLine .bestLabel{ opacity:0.9; font-weight:800; }
+    #bestLine .bestValue{ font-weight:900; }
+
+    @keyframes bestPop {
+      0% { transform: scale(0.95); filter: drop-shadow(0 0 0 rgba(255,215,0,0)); }
+      60% { transform: scale(1.10); filter: drop-shadow(0 0 20px rgba(255,215,0,0.55)); }
+      100% { transform: scale(1); filter: drop-shadow(0 0 12px rgba(255,215,0,0.35)); }
+    }
+    .newRecord #bestLine{
+      color:#ffe36e;
+      font-weight:900;
+      animation: bestPop 0.55s ease-out;
+    }
+    .newRecord #bestLine .bestValue{ font-weight:1000; }
+
+    /* 画面揺れ */
+    @keyframes shake {
+      0% { transform: translate(0,0); }
+      20% { transform: translate(-6px, 3px); }
+      40% { transform: translate(5px, -4px); }
+      60% { transform: translate(-4px, -2px); }
+      80% { transform: translate(4px, 3px); }
+      100% { transform: translate(0,0); }
+    }
+    body.shake{ animation: shake 0.35s; }
+
+    /* 黒い案内画面（動画前／ゲーム開始前） */
+    .gateScreen{
+      position:fixed; inset:0;
+      z-index:50;
+      display:none;
+      justify-content:center;
+      align-items:center;
+      text-align:center;
+      background:#000;
+      color:#fff;
+      padding:24px;
+      user-select:none;
+      -webkit-user-select:none;
+    }
+    .gateScreen .msg{
+      font-size:16px;
+      line-height:1.8;
+      opacity:0.95;
+      font-weight:800;
+      letter-spacing:0.02em;
+    }
+    .gateScreen .sub{
+      margin-top:10px;
+      font-size:12px;
+      opacity:0.75;
+      font-weight:600;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="bg"></div>
+  <div id="bgDim"></div>
+  <div id="gameRoot"></div>
+  <canvas id="confetti"></canvas>
+
+  <!-- ① 動画前の黒画面 -->
+  <div id="preVideoGate" class="gateScreen">
+    <div>
+      <div class="msg">画面をタップまたはマウスをクリックしてください</div>
+      <div class="sub">（タップ後にオープニングが再生されます。再度タップで動画をスキップ。）</div>
+    </div>
+  </div>
+
+  <!-- ② 動画後 → 「タップしてゲームスタート」 -->
+  <div id="startGate" class="gateScreen">
+    <div>
+      <div class="msg">タップしてゲームスタート<br>ゲームのルール：タップしてキャラクターを落として積んでみよう。</div>
+    </div>
+  </div>
+
+  <video id="opVideo" playsinline webkit-playsinline></video>
+
+  <div id="hud">
+    <span id="hudText">数：0ひき｜最高：0ひき</span>
+    <button id="resetBestBtn" type="button">最高リセット</button>
+    <button id="homeBtnHud" type="button">ホーム</button>
+  </div>
+
+  <div id="overlay">
+    <h2 id="resultTitle"></h2>
+    <p id="resultText"></p>
+    <p id="bestLine">
+      <span class="bestLabel">最高：</span><span class="bestValue" id="bestNum">0</span>個
+      <span id="bestBadge"></span>
+    </p>
+    <div id="btnRow">
+      <button id="retryBtn" class="bigBtn" type="button">もう一回</button>
+      <button id="homeBtnOverlay" class="bigBtn" type="button">ホームへ戻る</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+  <script>
+    // ===== 素材パス =====
+    const IMAGE_PATHS = [
+      "assets/img/1.png","assets/img/2.png","assets/img/3.png","assets/img/4.png","assets/img/5.png","assets/img/6.png","assets/img/7.png",
+    ];
+    const BG_PATHS = [
+      "assets/bg/1.jpg",
+      "assets/bg/2.jpg",
+      "assets/bg/3.jpg",
+    ];
+    const OPENING_MOVIE = "assets/movie/opening.mp4";
+    const BGM_PATH = "assets/bgm/bgm.mp3";
+    const GAMEOVER_SE_PATH = "assets/sfx/gameover.mp3";
+
+    // セーフ台：中央、幅2/3
+    const SAFE_RATIO = 2/3;
+    const SAFE_Y_RATIO = 0.80;
+
+    // ブロック
+    const BASE_SIZE = 140;
+    const PREVIEW_Y = 120;
+    const PREVIEW_SPEED = 3;
+    const STABLE_SPEED = 0.15;
+    const STABLE_SECONDS = 1.0;
+
+    // フェード
+    const FADE_MS = 650;
+
+    // センサー余裕
+    const SENSOR_EXTRA_H = 450;
+
+    // ハイスコア
+    const BEST_KEY = "stackGameBest";
+
+    // ===== Matter.js =====
+    const {Engine, Render, Runner, Bodies, Body, Composite, Events} = Matter;
+
+    let engine = null, render = null, runner = null;
+    let current = null;
+
+    let stacked = 0;
+    let best = 0;
+
+    let stableTimer = 0;
+    let canDrop = false;
+    let isRunning = false;
+
+    let SAFE = null;
+    let dangerSensorL = null;
+    let dangerSensorR = null;
+
+    let platformBody = null;
+
+    let ending = false;
+    let endingBody = null;
+    let fadeStart = 0;
+
+    const imgMeta = new Map();
+
+    let bgm = null;
+    let seGameOver = null;
+
+    const bgEl = document.getElementById("bg");
+    const gameRoot = document.getElementById("gameRoot");
+
+    const preVideoGate = document.getElementById("preVideoGate");
+    const startGate = document.getElementById("startGate");
+
+    const hud = document.getElementById("hud");
+    const hudText = document.getElementById("hudText");
+
+    const overlay = document.getElementById("overlay");
+    const resultTitle = document.getElementById("resultTitle");
+    const resultText = document.getElementById("resultText");
+    const bestNum = document.getElementById("bestNum");
+    const bestBadge = document.getElementById("bestBadge");
+
+    const confettiCanvas = document.getElementById("confetti");
+    const confettiCtx = confettiCanvas.getContext("2d");
+    let confettiAnimId = null;
+
+    // ★「開始タップ」がdropに流れないようにする保険
+    let ignoreNextDrop = false;
+
+    // 画面状態
+    let hasPlayedOpeningThisPage = false;
+    let gateReady = false;
+
+    function show(el){ el.style.display = "flex"; }
+    function hide(el){ el.style.display = "none"; }
+
+    function showHud(){ hud.style.display = "flex"; }
+    function hideHud(){ hud.style.display = "none"; }
+
+    function setRandomBackground(){
+      const p = BG_PATHS[Math.floor(Math.random() * BG_PATHS.length)];
+      bgEl.style.backgroundImage = `url("${p}")`;
+      bgEl.style.backgroundColor = "#000";
+    }
+    function clearBackgroundToBlack(){
+      bgEl.style.backgroundImage = "none";
+      bgEl.style.backgroundColor = "#000";
+    }
+
+    function loadBest(){
+      const v = Number(localStorage.getItem(BEST_KEY) || "0");
+      best = Number.isFinite(v) ? v : 0;
+    }
+    function setHudText(){
+      hudText.textContent = `数：${stacked}ひき｜最高：${best}ひき`;
+    }
+
+    function preloadImages(paths){
+      return Promise.all(paths.map(p => new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { imgMeta.set(p, {w: img.naturalWidth||1, h: img.naturalHeight||1}); resolve(); };
+        img.onerror = () => { imgMeta.set(p, {w:1,h:1}); resolve(); };
+        img.src = p;
+      })));
+    }
+
+    function triggerShake(){
+      document.body.classList.remove("shake");
+      void document.body.offsetWidth;
+      document.body.classList.add("shake");
+      setTimeout(() => document.body.classList.remove("shake"), 400);
+    }
+
+    function stopBgm(){ if(bgm) try{ bgm.pause(); }catch(e){} }
+    async function playBgm(){
+      if(!bgm) return;
+      try{ bgm.loop = true; bgm.volume = 0.45; await bgm.play(); }catch(e){}
+    }
+    function playSe(aud, vol=0.9){
+      if(!aud) return;
+      try{ aud.pause(); aud.currentTime = 0; aud.volume = vol; aud.play(); }catch(e){}
+    }
+
+    // ===== 紙吹雪 =====
+    function stopConfetti(){
+      if(confettiAnimId){
+        cancelAnimationFrame(confettiAnimId);
+        confettiAnimId = null;
+      }
+      confettiCanvas.style.display = "none";
+      confettiCtx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+    }
+
+    function launchConfetti(durationMs = 1400){
+      stopConfetti();
+
+      const dpr = (window.devicePixelRatio || 1);
+      confettiCanvas.width = innerWidth * dpr;
+      confettiCanvas.height = innerHeight * dpr;
+      confettiCanvas.style.display = "block";
+
+      const w = confettiCanvas.width;
+      const h = confettiCanvas.height;
+
+      const colors = ["#ffe36e","#ff6b6b","#6bffb2","#6bb7ff","#d66bff","#ffffff"];
+      const pieces = [];
+      const count = 160;
+
+      for(let i=0;i<count;i++){
+        pieces.push({
+          x: Math.random() * w,
+          y: -Math.random() * h * 0.3,
+          vx: (Math.random() - 0.5) * 2.8 * dpr,
+          vy: (Math.random() * 2.5 + 2.0) * dpr,
+          r: (Math.random() * 6 + 4) * dpr,
+          rot: Math.random() * Math.PI,
+          vr: (Math.random() - 0.5) * 0.18,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          life: Math.random() * 0.6 + 0.4
+        });
+      }
+
+      const t0 = performance.now();
+      function tick(t){
+        const elapsed = t - t0;
+        confettiCtx.clearRect(0,0,w,h);
+
+        for(const p of pieces){
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.03 * dpr;
+          p.rot += p.vr;
+
+          confettiCtx.save();
+          confettiCtx.translate(p.x, p.y);
+          confettiCtx.rotate(p.rot);
+          confettiCtx.globalAlpha = Math.max(0, 1 - elapsed / durationMs) * p.life;
+          confettiCtx.fillStyle = p.color;
+          confettiCtx.fillRect(-p.r, -p.r/2, p.r*2, p.r);
+          confettiCtx.restore();
+        }
+
+        if(elapsed < durationMs){
+          confettiAnimId = requestAnimationFrame(tick);
+        } else {
+          stopConfetti();
+        }
+      }
+      confettiAnimId = requestAnimationFrame(tick);
+    }
+
+    function initMatter(){
+      engine = Engine.create();
+      engine.world.gravity.y = 1.0;
+
+      render = Render.create({
+        element: gameRoot,
+        engine,
+        options: {
+          width: innerWidth,
+          height: innerHeight,
+          wireframes:false,
+          background:"transparent",
+          pixelRatio: Math.min(window.devicePixelRatio || 1, 2)
+        }
+      });
+
+      render.canvas.style.background = "transparent";
+      render.canvas.style.position = "fixed";
+      render.canvas.style.left = "0";
+      render.canvas.style.top = "0";
+      render.canvas.style.zIndex = "2";
+
+      runner = Runner.create();
+      Render.run(render);
+      Runner.run(runner, engine);
+
+      const sw = innerWidth, sh = innerHeight;
+
+      const wallT = 60;
+      const leftWall  = Bodies.rectangle(-wallT/2, sh/2, wallT, sh*2, {isStatic:true});
+      const rightWall = Bodies.rectangle(sw+wallT/2, sh/2, wallT, sh*2, {isStatic:true});
+      leftWall.render.visible = false;
+      rightWall.render.visible = false;
+
+      const safeW = sw * SAFE_RATIO;
+      const safeH = 26;
+      const safeX = (sw - safeW) / 2;
+      const safeY = Math.floor(sh * SAFE_Y_RATIO);
+      SAFE = { x: safeX, y: safeY, w: safeW, h: safeH };
+
+      const platform = Bodies.rectangle(safeX + safeW/2, safeY, safeW, safeH, {isStatic:true, friction:1.0});
+      platform.render.fillStyle = "#c91f1f";
+      platform.render.strokeStyle = "transparent";
+      platform.render.lineWidth = 0;
+      platformBody = platform;
+
+      const sensorY = (safeY + sh) / 2;
+      const sensorH = (sh - safeY) + SENSOR_EXTRA_H;
+
+      const leftW = safeX;
+      const rightW = sw - (safeX + safeW);
+
+      dangerSensorL = Bodies.rectangle(leftW/2, sensorY, Math.max(1,leftW), sensorH, {isStatic:true, isSensor:true});
+      dangerSensorR = Bodies.rectangle((safeX + safeW) + rightW/2, sensorY, Math.max(1,rightW), sensorH, {isStatic:true, isSensor:true});
+      dangerSensorL.render.visible = false;
+      dangerSensorR.render.visible = false;
+
+      Composite.add(engine.world, [leftWall, rightWall, platform, dangerSensorL, dangerSensorR]);
+
+      Events.on(engine, "collisionStart", (evt) => {
+        if(!isRunning || ending) return;
+        for(const pair of evt.pairs){
+          const a = pair.bodyA, b = pair.bodyB;
+          const hitSensor =
+            (a === dangerSensorL || a === dangerSensorR) ? a :
+            (b === dangerSensorL || b === dangerSensorR) ? b :
+            null;
+          if(!hitSensor) continue;
+          const other = (hitSensor === a) ? b : a;
+          if(!other.isStatic){ startFadeGameOver(other); return; }
+        }
+      });
+
+      Events.on(render, "afterRender", () => {
+        if(!SAFE || !platformBody) return;
+        const ctx = render.context;
+        const x = SAFE.x, y = SAFE.y - SAFE.h/2, w = SAFE.w, h = SAFE.h;
+
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.shadowColor = "rgba(255,80,80,0.8)";
+        ctx.shadowBlur = 18;
+        ctx.fillStyle = "rgba(255,60,60,0.22)";
+        ctx.fillRect(x,y,w,h);
+
+        ctx.shadowBlur = 0;
+        const g = ctx.createLinearGradient(x,y,x,y+h);
+        g.addColorStop(0, "rgba(255,255,255,0.22)");
+        g.addColorStop(0.45, "rgba(255,255,255,0.06)");
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(x,y,w,h);
+        ctx.restore();
+      });
+
+      Events.on(engine, "beforeUpdate", () => {
+        if(!isRunning) return;
+
+        if(ending && endingBody){
+          const t = performance.now() - fadeStart;
+          const p = Math.min(1, t / FADE_MS);
+          endingBody.render.opacity = 1 - p;
+          if(p >= 1){
+            ending = false;
+            endingBody = null;
+            gameOver();
+          }
+          return;
+        }
+
+        if(current && canDrop){
+          if(current.speed < STABLE_SPEED){
+            stableTimer += 1/60;
+            if(stableTimer >= STABLE_SECONDS){
+              stacked++;
+              setHudText();
+              stableTimer = 0;
+              spawnNext();
+            }
+          } else {
+            stableTimer = 0;
+          }
+        }
+      });
+
+      window.addEventListener("resize", () => location.reload());
+    }
+
+    function createBodyForImage(path, x, y){
+      const meta = imgMeta.get(path) || {w:1,h:1};
+      const aspect = meta.w / meta.h;
+
+      let bw, bh;
+      if(aspect >= 1){
+        bw = BASE_SIZE;
+        bh = Math.max(80, Math.min(200, BASE_SIZE / aspect));
+      } else {
+        bh = BASE_SIZE;
+        bw = Math.max(80, Math.min(200, BASE_SIZE * aspect));
+      }
+
+      return Bodies.rectangle(x, y, bw, bh, {
+        restitution: 0.0,
+        friction: 0.9,
+        frictionAir: 0.01,
+        render: {
+          opacity: 1,
+          sprite: {
+            texture: path,
+            xScale: bw / meta.w,
+            yScale: bh / meta.h
+          }
+        }
+      });
+    }
+
+    function spawnNext(){
+      const x = innerWidth/2;
+      const y = PREVIEW_Y;
+
+      const path = IMAGE_PATHS[Math.floor(Math.random() * IMAGE_PATHS.length)];
+      current = createBodyForImage(path, x, y);
+
+      Body.setStatic(current, true);
+      Composite.add(engine.world, current);
+
+      canDrop = false;
+      stableTimer = 0;
+      startPreviewMove();
+    }
+
+    let previewDir = 1;
+    function startPreviewMove(){
+      const minX = 70;
+      const maxX = innerWidth - 70;
+
+      const id = setInterval(() => {
+        if(!isRunning || !current) return clearInterval(id);
+        if(canDrop || ending) return clearInterval(id);
+
+        let nx = current.position.x + previewDir * PREVIEW_SPEED;
+        if(nx < minX || nx > maxX) previewDir *= -1;
+        Body.setPosition(current, {x:nx, y: current.position.y});
+      }, 16);
+    }
+
+    function drop(){
+      if(!isRunning || !current || canDrop || ending) return;
+      Body.setStatic(current, false);
+      canDrop = true;
+      stableTimer = 0;
+    }
+
+    function startFadeGameOver(body){
+      if(ending) return;
+
+      playSe(seGameOver, 0.9);
+      triggerShake();
+
+      ending = true;
+      endingBody = body;
+      fadeStart = performance.now();
+      canDrop = true;
+
+      try { Body.setVelocity(body, { x: body.velocity.x, y: Math.max(body.velocity.y, 6) }); } catch(e){}
+    }
+
+    function commentForScore(n){
+      if(n <= 2) return "まだまだだね";
+      if(n <= 4) return "やりますね";
+      if(n <= 6) return "ここから先は…地獄だぜ";
+      return "あなたこそが糞ゲー王";
+    }
+
+    function gameOver(){
+      isRunning = false;
+      stopBgm();
+
+      const isNew = stacked > best;
+      if(isNew){
+        best = stacked;
+        localStorage.setItem(BEST_KEY, String(best));
+      }
+      setHudText();
+
+      overlay.classList.remove("newRecord");
+      void overlay.offsetWidth;
+      if(isNew) overlay.classList.add("newRecord");
+
+      overlay.style.display = "flex";
+      resultTitle.textContent = `GAME OVER（${stacked}個）`;
+      resultText.textContent = commentForScore(stacked);
+
+      bestNum.textContent = String(best);
+      bestBadge.textContent = isNew ? "（最高記録！）" : "";
+
+      if(isNew) launchConfetti(1500);
+      else stopConfetti();
+    }
+
+    function clearDynamicBodies(){
+      if(!engine) return;
+      const bodies = Composite.allBodies(engine.world);
+      for(const b of bodies){
+        if(!b.isStatic) Composite.remove(engine.world, b);
+      }
+    }
+
+    // 新ゲーム開始（背景変更はゲーム開始時）
+    function startNewGame(){
+      stopConfetti();
+      setRandomBackground();
+
+      clearDynamicBodies();
+
+      stacked = 0;
+      stableTimer = 0;
+      canDrop = false;
+      ending = false;
+      endingBody = null;
+
+      overlay.style.display = "none";
+
+      isRunning = true;
+      showHud();
+      setHudText();
+      spawnNext();
+      playBgm();
+    }
+
+    // ホーム：動画は流さず「タップしてゲームスタート」へ
+    function goHome(){
+      stopConfetti();
+      isRunning = false;
+      stopBgm();
+      overlay.style.display = "none";
+
+      clearDynamicBodies();
+      current = null;
+      canDrop = false;
+      ending = false;
+      endingBody = null;
+
+      hideHud();
+      clearBackgroundToBlack();
+      showStartGate();
+    }
+
+    // ===== 導線（動画前→動画→スタートゲート） =====
+
+    function showPreVideoGate(){
+      hide(startGate);
+      overlay.style.display = "none";
+      hideHud();
+      clearBackgroundToBlack();
+      show(preVideoGate);
+      gateReady = true;
+
+      const onTap = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if(!gateReady) return;
+        gateReady = false;
+        hide(preVideoGate);
+        await playOpeningOnce();
+      };
+
+      preVideoGate.addEventListener("pointerdown", onTap, { once:true });
+      preVideoGate.addEventListener("click", onTap, { once:true });
+    }
+
+    function showStartGate(){
+      hide(preVideoGate);
+      overlay.style.display = "none";
+      hideHud();
+      clearBackgroundToBlack();
+      show(startGate);
+      gateReady = true;
+
+      const onTap = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if(!gateReady) return;
+        gateReady = false;
+        hide(startGate);
+
+        // ★このタップがdropに流れないようにする（仕様③）
+        ignoreNextDrop = true;
+
+        if(!engine) initMatter();
+        startNewGame();
+      };
+
+      startGate.addEventListener("pointerdown", onTap, { once:true });
+      startGate.addEventListener("click", onTap, { once:true });
+    }
+
+    async function playOpeningOnce(){
+      if(hasPlayedOpeningThisPage){
+        showStartGate();
+        return;
+      }
+      hasPlayedOpeningThisPage = true;
+
+      loadBest();
+      setHudText();
+
+      if(!bgm){
+        bgm = new Audio(BGM_PATH);
+        bgm.preload = "auto";
+        bgm.loop = true;
+        bgm.volume = 0.45;
+      }
+      if(!seGameOver){
+        seGameOver = new Audio(GAMEOVER_SE_PATH);
+        seGameOver.preload = "auto";
+        seGameOver.volume = 0.9;
+      }
+
+      await preloadImages(IMAGE_PATHS);
+
+      const video = document.getElementById("opVideo");
+      video.src = OPENING_MOVIE;
+
+      const endOpening = () => {
+        try { video.pause(); } catch(e) {}
+        video.style.display = "none";
+        clearBackgroundToBlack();
+
+        // ② 5秒ウェイトは削除 → すぐスタートゲート
+        showStartGate();
+      };
+
+      clearBackgroundToBlack();
+      video.style.display = "block";
+      video.addEventListener("ended", endOpening, { once:true });
+      video.onclick = endOpening;
+
+      try {
+        await video.play();
+      } catch(e){
+        endOpening();
+      }
+    }
+
+    // ===== 操作：ゲーム中のタップで落とす =====
+    window.addEventListener("pointerdown", (e) => {
+      // ★ゲート開始直後の「1回目タップ」をdropに使わない（仕様③）
+      if(ignoreNextDrop){
+        ignoreNextDrop = false;
+        return;
+      }
+      drop();
+    }, {passive:true});
+
+    // UI
+    document.getElementById("retryBtn").addEventListener("click", () => startNewGame());
+    document.getElementById("homeBtnOverlay").addEventListener("click", () => goHome());
+    document.getElementById("homeBtnHud").addEventListener("click", () => goHome());
+
+    document.getElementById("resetBestBtn").addEventListener("click", () => {
+      const ok = confirm("最高記録をリセットしますか？（元に戻せません）");
+      if(!ok) return;
+      localStorage.removeItem(BEST_KEY);
+      best = 0;
+      setHudText();
+      alert("最高記録をリセットしました！");
+    });
+
+    // 初期表示：動画前ゲート（黒画面）
+    clearBackgroundToBlack();
+    loadBest();
+    setHudText();
+    showPreVideoGate();
+  </script>
+</body>
+</html>
