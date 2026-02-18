@@ -621,7 +621,7 @@
 
     function spawnNext(){
       const x = vw()/2;
-      const y = Math.max(90, PREVIEW_Y0 * SCALE); // ★スマホで上が詰まりやすいので少し下げつつ可変
+      const y = Math.max(70, PREVIEW_Y0 * SCALE); // ★スマホで上が詰まりやすいので少し下げつつ可変
 
       const path = IMAGE_PATHS[Math.floor(Math.random() * IMAGE_PATHS.length)];
       current = createBodyForImage(path, x, y);
@@ -881,5 +881,6 @@
   </script>
 </body>
 </html>
+
 
 
