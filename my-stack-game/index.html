@@ -43,20 +43,19 @@
       display:none;
     }
 
-/* OP動画 */
-#opVideo{
-  position:fixed;
-  top:50%;
-  left:50%;
-  width:95%;
-  height:95%;
-  transform:translate(-50%,-50%); /* ★中央寄せ */
-  object-fit:contain;             /* ★全部入れたいなら cover→contain */
-  display:none;
-  z-index:40;
-  background:#000;
-}
-
+    /* OP動画 */
+    #opVideo{
+      position:fixed;
+      top:50%;
+      left:50%;
+      width:95%;
+      height:95%;
+      transform:translate(-50%,-50%);
+      object-fit:contain;
+      display:none;
+      z-index:40;
+      background:#000;
+    }
 
     /* HUD（ゲーム中だけ表示） */
     #hud{
@@ -68,7 +67,7 @@
       font-weight:800;
       user-select:none;
       white-space:nowrap;
-      display:none; /* ★初期は非表示 */
+      display:none;
       align-items:center;
       gap:10px;
     }
@@ -229,24 +228,15 @@
     const BGM_PATH = "assets/bgm/bgm.mp3";
     const GAMEOVER_SE_PATH = "assets/sfx/gameover.mp3";
 
-    // セーフ台：中央、幅2/3
-    const SAFE_RATIO = 2/3;
-    const SAFE_Y_RATIO = 0.80;
+    // ===== スマホ救済チューニング（ここ触ると一気に変わる）=====
+    const BLOCK_SCALE = 0.80;      // ブロック縮小（0.70〜0.95）
+    const SENSOR_FORGIVE = 70;     // 判定救済px（大きいほど優しい：40〜120）
+    const SAFE_Y_RATIO = 0.88;     // 赤バーを下へ（0.86〜0.92）
+    const SAFE_RATIO_PC = 2/3;
+    const SAFE_RATIO_MOBILE = 0.78; // スマホは台をちょい広く（積みやすい）
 
-    // ===== レスポンシブ倍率（スマホで小さくする）=====
-const DESIGN_W = 900;        // PCでちょうど良かった基準幅（だいたいでOK）
-const MIN_SCALE = 0.55;      // 小さくしすぎ防止（0.45〜0.7で好み調整）
-let SCALE = 1;
-
-function updateScale(){
-  SCALE = Math.min(1, Math.max(MIN_SCALE, innerWidth / DESIGN_W));
-}
-updateScale();
-
-
-    // ブロック
-    const BASE_SIZE0 = 140; // 元サイズ（PC基準）
-    const PREVIEW_Y = 120;
+    // ブロック（“元”サイズ。実際は BLOCK_SCALE が掛かる）
+    const BASE_SIZE0 = 140;
     const PREVIEW_SPEED = 3;
     const STABLE_SPEED = 0.15;
     const STABLE_SECONDS = 1.0;
@@ -259,6 +249,23 @@ updateScale();
 
     // ハイスコア
     const BEST_KEY = "stackGameBest";
+
+    // ===== 表示サイズ（スマホのアドレスバー対策）=====
+    function viewW(){ return Math.floor(window.innerWidth); }
+    function viewH(){
+      // iOS/Androidのアドレスバーで innerHeight が不安定になるので、可能なら visualViewport を優先
+      return Math.floor((window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight);
+    }
+    function isMobileLike(){
+      return Math.min(viewW(), viewH()) < 600;
+    }
+    function safeRatio(){
+      return isMobileLike() ? SAFE_RATIO_MOBILE : SAFE_RATIO_PC;
+    }
+    function previewY(){
+      // 上のUIに被りにくい位置（画面高に比例）
+      return Math.max(90, Math.floor(viewH() * 0.14));
+    }
 
     // ===== Matter.js =====
     const {Engine, Render, Runner, Bodies, Body, Composite, Events} = Matter;
@@ -378,8 +385,8 @@ updateScale();
       stopConfetti();
 
       const dpr = (window.devicePixelRatio || 1);
-      confettiCanvas.width = innerWidth * dpr;
-      confettiCanvas.height = innerHeight * dpr;
+      confettiCanvas.width = viewW() * dpr;
+      confettiCanvas.height = viewH() * dpr;
       confettiCanvas.style.display = "block";
 
       const w = confettiCanvas.width;
@@ -440,8 +447,8 @@ updateScale();
         element: gameRoot,
         engine,
         options: {
-          width: innerWidth,
-          height: innerHeight,
+          width: viewW(),
+          height: viewH(),
           wireframes:false,
           background:"transparent",
           pixelRatio: Math.min(window.devicePixelRatio || 1, 2)
@@ -458,7 +465,7 @@ updateScale();
       Render.run(render);
       Runner.run(runner, engine);
 
-      const sw = innerWidth, sh = innerHeight;
+      const sw = viewW(), sh = viewH();
 
       const wallT = 60;
       const leftWall  = Bodies.rectangle(-wallT/2, sh/2, wallT, sh*2, {isStatic:true});
@@ -466,7 +473,8 @@ updateScale();
       leftWall.render.visible = false;
       rightWall.render.visible = false;
 
-      const safeW = sw * SAFE_RATIO;
+      // セーフ台（スマホは少し広め）
+      const safeW = sw * safeRatio();
       const safeH = 26;
       const safeX = (sw - safeW) / 2;
       const safeY = Math.floor(sh * SAFE_Y_RATIO);
@@ -478,14 +486,18 @@ updateScale();
       platform.render.lineWidth = 0;
       platformBody = platform;
 
+      // 左右アウトセンサー（救済幅で細くする）
       const sensorY = (safeY + sh) / 2;
       const sensorH = (sh - safeY) + SENSOR_EXTRA_H;
 
-      const leftW = safeX;
-      const rightW = sw - (safeX + safeW);
+      const leftW0 = safeX;
+      const rightW0 = sw - (safeX + safeW);
 
-      dangerSensorL = Bodies.rectangle(leftW/2, sensorY, Math.max(1,leftW), sensorH, {isStatic:true, isSensor:true});
-      dangerSensorR = Bodies.rectangle((safeX + safeW) + rightW/2, sensorY, Math.max(1,rightW), sensorH, {isStatic:true, isSensor:true});
+      const leftW = Math.max(1, leftW0 - SENSOR_FORGIVE);
+      const rightW = Math.max(1, rightW0 - SENSOR_FORGIVE);
+
+      dangerSensorL = Bodies.rectangle(leftW/2, sensorY, leftW, sensorH, {isStatic:true, isSensor:true});
+      dangerSensorR = Bodies.rectangle((safeX + safeW) + rightW/2, sensorY, rightW, sensorH, {isStatic:true, isSensor:true});
       dangerSensorL.render.visible = false;
       dangerSensorR.render.visible = false;
 
@@ -557,26 +569,26 @@ updateScale();
         }
       });
 
-      window.addEventListener("resize", () => location.reload());
+      // ※スマホのアドレスバーで頻繁にresizeが起きるので、ここは「回転時だけ」再読み込みにする
+      window.addEventListener("orientationchange", () => location.reload());
     }
 
     function createBodyForImage(path, x, y){
       const meta = imgMeta.get(path) || {w:1,h:1};
       const aspect = meta.w / meta.h;
 
-const BASE_SIZE = BASE_SIZE0 * SCALE;
-const MIN_WH = 80 * SCALE;
-const MAX_WH = 200 * SCALE;
+      const BASE_SIZE = BASE_SIZE0 * BLOCK_SCALE;
+      const MIN_WH = 80 * BLOCK_SCALE;
+      const MAX_WH = 200 * BLOCK_SCALE;
 
-let bw, bh;
-if(aspect >= 1){
-  bw = BASE_SIZE;
-  bh = Math.max(MIN_WH, Math.min(MAX_WH, BASE_SIZE / aspect));
-} else {
-  bh = BASE_SIZE;
-  bw = Math.max(MIN_WH, Math.min(MAX_WH, BASE_SIZE * aspect));
-}
-
+      let bw, bh;
+      if(aspect >= 1){
+        bw = BASE_SIZE;
+        bh = Math.max(MIN_WH, Math.min(MAX_WH, BASE_SIZE / aspect));
+      } else {
+        bh = BASE_SIZE;
+        bw = Math.max(MIN_WH, Math.min(MAX_WH, BASE_SIZE * aspect));
+      }
 
       return Bodies.rectangle(x, y, bw, bh, {
         restitution: 0.0,
@@ -594,8 +606,8 @@ if(aspect >= 1){
     }
 
     function spawnNext(){
-      const x = innerWidth/2;
-      const y = PREVIEW_Y;
+      const x = viewW()/2;
+      const y = previewY();
 
       const path = IMAGE_PATHS[Math.floor(Math.random() * IMAGE_PATHS.length)];
       current = createBodyForImage(path, x, y);
@@ -610,8 +622,10 @@ if(aspect >= 1){
 
     let previewDir = 1;
     function startPreviewMove(){
-      const minX = 70;
-      const maxX = innerWidth - 70;
+      const sw = viewW();
+      const margin = Math.max(40, (BASE_SIZE0 * BLOCK_SCALE) * 0.6);
+      const minX = margin;
+      const maxX = sw - margin;
 
       const id = setInterval(() => {
         if(!isRunning || !current) return clearInterval(id);
@@ -763,7 +777,7 @@ if(aspect >= 1){
         gateReady = false;
         hide(startGate);
 
-        // ★このタップがdropに流れないようにする（仕様③）
+        // ★このタップがdropに流れないようにする
         ignoreNextDrop = true;
 
         if(!engine) initMatter();
@@ -805,8 +819,6 @@ if(aspect >= 1){
         try { video.pause(); } catch(e) {}
         video.style.display = "none";
         clearBackgroundToBlack();
-
-        // ② 5秒ウェイトは削除 → すぐスタートゲート
         showStartGate();
       };
 
@@ -824,7 +836,6 @@ if(aspect >= 1){
 
     // ===== 操作：ゲーム中のタップで落とす =====
     window.addEventListener("pointerdown", (e) => {
-      // ★ゲート開始直後の「1回目タップ」をdropに使わない（仕様③）
       if(ignoreNextDrop){
         ignoreNextDrop = false;
         return;
@@ -854,5 +865,3 @@ if(aspect >= 1){
   </script>
 </body>
 </html>
-<!--redeploy -->
-
