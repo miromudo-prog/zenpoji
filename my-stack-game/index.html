@@ -233,8 +233,19 @@
     const SAFE_RATIO = 2/3;
     const SAFE_Y_RATIO = 0.80;
 
+    // ===== レスポンシブ倍率（スマホで小さくする）=====
+const DESIGN_W = 900;        // PCでちょうど良かった基準幅（だいたいでOK）
+const MIN_SCALE = 0.55;      // 小さくしすぎ防止（0.45〜0.7で好み調整）
+let SCALE = 1;
+
+function updateScale(){
+  SCALE = Math.min(1, Math.max(MIN_SCALE, innerWidth / DESIGN_W));
+}
+updateScale();
+
+
     // ブロック
-    const BASE_SIZE = 140;
+    const BASE_SIZE0 = 140; // 元サイズ（PC基準）
     const PREVIEW_Y = 120;
     const PREVIEW_SPEED = 3;
     const STABLE_SPEED = 0.15;
@@ -553,14 +564,19 @@
       const meta = imgMeta.get(path) || {w:1,h:1};
       const aspect = meta.w / meta.h;
 
-      let bw, bh;
-      if(aspect >= 1){
-        bw = BASE_SIZE;
-        bh = Math.max(80, Math.min(200, BASE_SIZE / aspect));
-      } else {
-        bh = BASE_SIZE;
-        bw = Math.max(80, Math.min(200, BASE_SIZE * aspect));
-      }
+const BASE_SIZE = BASE_SIZE0 * SCALE;
+const MIN_WH = 80 * SCALE;
+const MAX_WH = 200 * SCALE;
+
+let bw, bh;
+if(aspect >= 1){
+  bw = BASE_SIZE;
+  bh = Math.max(MIN_WH, Math.min(MAX_WH, BASE_SIZE / aspect));
+} else {
+  bh = BASE_SIZE;
+  bw = Math.max(MIN_WH, Math.min(MAX_WH, BASE_SIZE * aspect));
+}
+
 
       return Bodies.rectangle(x, y, bw, bh, {
         restitution: 0.0,
@@ -839,3 +855,4 @@
 </body>
 </html>
 <!--redeploy -->
+
