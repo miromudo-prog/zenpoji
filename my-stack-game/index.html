@@ -2,15 +2,21 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
+  <!-- 100dvh対応（iOSのアドレスバーで高さが変わる問題を軽減） -->
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>ゼンポウジ保健委員会委員長</title>
 
   <style>
     html,body{
-      margin:0; height:100%; overflow:hidden;
+      margin:0;
+      height:100%;
+      overflow:hidden;
       background: transparent;
       font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
     }
+
+    /* iOSのアドレスバー等でvhがズレるのを軽減 */
+    body{ height: 100dvh; }
 
     /* 背景（ゲーム中に表示。未設定時は黒） */
     #bg{
@@ -228,19 +234,29 @@
     const BGM_PATH = "assets/bgm/bgm.mp3";
     const GAMEOVER_SE_PATH = "assets/sfx/gameover.mp3";
 
-// ===== スマホ救済チューニング（極小ブロック版）=====
-const BLOCK_SCALE = 0.10;        // ★ブロック10分の1
-const SENSOR_FORGIVE = 120;      // ★赤バー判定をかなり優しく
-const SAFE_Y_RATIO = 0.88;       // ★バーを下に
-const SAFE_RATIO_PC = 2/3;
-const SAFE_RATIO_MOBILE = 0.85;  // ★スマホは台を広めに
+    // ===== スマホ最適化（ここが今回の改善点）=====
+    // ブロックを端末幅で自動縮小（PCは1.0、スマホは小さめ）
+    const DESIGN_W = 900;   // PC基準の幅（ざっくりでOK）
+    const MIN_SCALE = 0.10; // 小さくしすぎ防止（0.45〜0.7で好み）
+    let SCALE = 1;
 
-// ブロック元サイズ（実際は BLOCK_SCALE が掛かる）
-const BASE_SIZE0 = 140;
+    // さらに「全体的に少し小さくしたい」場合の倍率（ここだけ触ればOK）
+    const BLOCK_SCALE = 0.20; // 0.75〜0.95おすすめ
 
+    // 赤バー判定を優しく（大きいほど許す）
+    const SENSOR_FORGIVE = 60; // 30〜100で調整
 
-    // ブロック（“元”サイズ。実際は BLOCK_SCALE が掛かる）
+    // セーフ台：中央、幅2/3
+    const SAFE_RATIO = 2/3;
+
+    // ★バーを下げて上の余白を増やす（数値↑で下がる）
+    const SAFE_Y_RATIO = 0.88; // 0.86〜0.92で調整
+
+    // ブロック（元サイズ）
     const BASE_SIZE0 = 140;
+
+    // プレビュー（スマホで上が狭いので少し下げる）
+    const PREVIEW_Y0 = 140;
     const PREVIEW_SPEED = 3;
     const STABLE_SPEED = 0.15;
     const STABLE_SECONDS = 1.0;
@@ -254,22 +270,14 @@ const BASE_SIZE0 = 140;
     // ハイスコア
     const BEST_KEY = "stackGameBest";
 
-    // ===== 表示サイズ（スマホのアドレスバー対策）=====
-    function viewW(){ return Math.floor(window.innerWidth); }
-    function viewH(){
-      // iOS/Androidのアドレスバーで innerHeight が不安定になるので、可能なら visualViewport を優先
-      return Math.floor((window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight);
+    // ===== viewport サイズ（iOSのアドレスバー変動を少しマシに）=====
+    function vw(){ return Math.floor((window.visualViewport && window.visualViewport.width) ? window.visualViewport.width : innerWidth); }
+    function vh(){ return Math.floor((window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : innerHeight); }
+
+    function updateScale(){
+      SCALE = Math.min(1, Math.max(MIN_SCALE, vw() / DESIGN_W));
     }
-    function isMobileLike(){
-      return Math.min(viewW(), viewH()) < 600;
-    }
-    function safeRatio(){
-      return isMobileLike() ? SAFE_RATIO_MOBILE : SAFE_RATIO_PC;
-    }
-    function previewY(){
-      // 上のUIに被りにくい位置（画面高に比例）
-      return Math.max(90, Math.floor(viewH() * 0.14));
-    }
+    updateScale();
 
     // ===== Matter.js =====
     const {Engine, Render, Runner, Bodies, Body, Composite, Events} = Matter;
@@ -389,8 +397,8 @@ const BASE_SIZE0 = 140;
       stopConfetti();
 
       const dpr = (window.devicePixelRatio || 1);
-      confettiCanvas.width = viewW() * dpr;
-      confettiCanvas.height = viewH() * dpr;
+      confettiCanvas.width = vw() * dpr;
+      confettiCanvas.height = vh() * dpr;
       confettiCanvas.style.display = "block";
 
       const w = confettiCanvas.width;
@@ -444,6 +452,8 @@ const BASE_SIZE0 = 140;
     }
 
     function initMatter(){
+      updateScale();
+
       engine = Engine.create();
       engine.world.gravity.y = 1.0;
 
@@ -451,8 +461,8 @@ const BASE_SIZE0 = 140;
         element: gameRoot,
         engine,
         options: {
-          width: viewW(),
-          height: viewH(),
+          width: vw(),
+          height: vh(),
           wireframes:false,
           background:"transparent",
           pixelRatio: Math.min(window.devicePixelRatio || 1, 2)
@@ -469,7 +479,7 @@ const BASE_SIZE0 = 140;
       Render.run(render);
       Runner.run(runner, engine);
 
-      const sw = viewW(), sh = viewH();
+      const sw = vw(), sh = vh();
 
       const wallT = 60;
       const leftWall  = Bodies.rectangle(-wallT/2, sh/2, wallT, sh*2, {isStatic:true});
@@ -477,8 +487,7 @@ const BASE_SIZE0 = 140;
       leftWall.render.visible = false;
       rightWall.render.visible = false;
 
-      // セーフ台（スマホは少し広め）
-      const safeW = sw * safeRatio();
+      const safeW = sw * SAFE_RATIO;
       const safeH = 26;
       const safeX = (sw - safeW) / 2;
       const safeY = Math.floor(sh * SAFE_Y_RATIO);
@@ -490,13 +499,13 @@ const BASE_SIZE0 = 140;
       platform.render.lineWidth = 0;
       platformBody = platform;
 
-      // 左右アウトセンサー（救済幅で細くする）
       const sensorY = (safeY + sh) / 2;
       const sensorH = (sh - safeY) + SENSOR_EXTRA_H;
 
       const leftW0 = safeX;
       const rightW0 = sw - (safeX + safeW);
 
+      // ★救済：センサーを少し細くして判定を優しくする
       const leftW = Math.max(1, leftW0 - SENSOR_FORGIVE);
       const rightW = Math.max(1, rightW0 - SENSOR_FORGIVE);
 
@@ -573,15 +582,18 @@ const BASE_SIZE0 = 140;
         }
       });
 
-      // ※スマホのアドレスバーで頻繁にresizeが起きるので、ここは「回転時だけ」再読み込みにする
-      window.addEventListener("orientationchange", () => location.reload());
+      // ※ 端末回転などでズレるので、シンプルにリロードでOK（初心者向け）
+      window.addEventListener("resize", () => location.reload());
     }
 
     function createBodyForImage(path, x, y){
       const meta = imgMeta.get(path) || {w:1,h:1};
       const aspect = meta.w / meta.h;
 
-
+      // ★端末幅に応じて縮小（SCALE）＋好みの縮小（BLOCK_SCALE）
+      const BASE_SIZE = BASE_SIZE0 * SCALE * BLOCK_SCALE;
+      const MIN_WH = 80 * SCALE * BLOCK_SCALE;
+      const MAX_WH = 200 * SCALE * BLOCK_SCALE;
 
       let bw, bh;
       if(aspect >= 1){
@@ -608,8 +620,8 @@ const BASE_SIZE0 = 140;
     }
 
     function spawnNext(){
-      const x = viewW()/2;
-      const y = previewY();
+      const x = vw()/2;
+      const y = Math.max(90, PREVIEW_Y0 * SCALE); // ★スマホで上が詰まりやすいので少し下げつつ可変
 
       const path = IMAGE_PATHS[Math.floor(Math.random() * IMAGE_PATHS.length)];
       current = createBodyForImage(path, x, y);
@@ -624,8 +636,10 @@ const BASE_SIZE0 = 140;
 
     let previewDir = 1;
     function startPreviewMove(){
-      const sw = viewW();
-      const margin = Math.max(40, (BASE_SIZE0 * BLOCK_SCALE) * 0.6);
+      const sw = vw();
+
+      // ★ブロックがデカくて端で即死しないように余白を可変に
+      const margin = Math.max(40, (BASE_SIZE0 * SCALE * BLOCK_SCALE) * 0.65);
       const minX = margin;
       const maxX = sw - margin;
 
@@ -867,4 +881,3 @@ const BASE_SIZE0 = 140;
   </script>
 </body>
 </html>
-
